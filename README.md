@@ -6,6 +6,7 @@ brain-culture coevolution as a reason for larger brains:
 Exploring the “cultural drive” hypothesis by computer
 modeling. Ecol Evol. 2020;10:6059–6077. https://doi.
 org/10.1002/ece3.6350
+
 [2]: Markov AV, Markov MA. Coevolution of Brain, Culture, and Lifespan:
 Insights from Computer Simulations. Biochemistry. DOI: 10.1134/S0006297921120014
 
@@ -16,9 +17,10 @@ The project is in the initial stage of its development and is subject to signifi
 ## Development plan
 
 1. All simulation parameters should be defined in a structure, which can be loaded from a configuration file or constructed from a http request
-2. The Tribesim core implementation should be moved to a separate crate.
-3. A web application providing basic UI allowing supplying parameters and initiating runs should be implemented.
-4. The feature set of the 2021 article should be implemented.
+1. A separate metadata database storing the simulation parameters for the puspose of annotating the run statistics should be supported.
+1. The Tribesim core implementation should be moved to a separate crate.
+1. A web application providing basic UI allowing supplying parameters and initiating runs should be implemented.
+1. The feature set of the 2021 article should be implemented.
 
 # Project Structure
 
