@@ -22,6 +22,127 @@ The project is in the initial stage of its development and is subject to signifi
 1. A web application providing basic UI allowing supplying parameters and initiating runs should be implemented.
 1. The feature set of the 2021 article should be implemented.
 
+# Compilation and usage
+Rust 1.84 is required. Older versions **may** work as well, but are not supported.
+
+## Preparation
+The application requires access to a Clickhouse database to save statistics of its simulation runs. The SQL statements for the database deployment are present in the `sql/clickhouse/` project directory.
+
+## Building & Running
+
+- **Build** the project:
+  ```bash
+  cargo build --release
+  ```
+
+- **Run** the project:
+  ```bash
+  export CLICKHOUSE_URL="http://host:port/"
+  export CLICKHOUSE_USER=tribesim
+  export CLICKHOUSE_PASSWORD=YourSecurePassw0rd!
+  export CLICKHOUSE_DB=tribesim
+  export SIM_CONFIG=examples/cfg.json
+  ./target/release/tribesim
+  ```
+
+# JSON Configuration Format
+
+This project allows you to **configure** various simulation parameters (mutation probabilities, agent properties, group limits, etc.) using a **JSON** file. Below is an **example** JSON layout corresponding to the `SimConfig` struct and its sub-structures.
+
+```json
+{
+  "mutation_config": {
+    "mem_mutation": {
+      "probability": 0.05,
+      "magnitude_std": 1.0
+    },
+    "learning_mutation": {
+      "probability": 0.02,
+      "magnitude_std": 0.3
+    },
+    "teaching_mutation": {
+      "probability": 0.01,
+      "magnitude_std": 0.2
+    }
+  },
+  "agent_config": {
+    "base_brain_volume": 20.0,
+    "mem_cost": 1.0,
+    "death_prob_multiplier": 0.002
+  },
+  "meme_config": [
+    {
+      "meme_kind": "Hunting",
+      "probability": 0.15,
+      "size": {
+        "min": 0.5,
+        "max": 2.5
+      },
+      "effect": {
+        "min": 0.1,
+        "max": 0.6
+      }
+    },
+    {
+      "meme_kind": "Trick",
+      "probability": 0.10,
+      "size": {
+        "min": 0.3,
+        "max": 1.0
+      },
+      "effect": {
+        "min": 0.2,
+        "max": 1.5
+      }
+    }
+  ],
+  "group_config": {
+    "max_size": 150
+  },
+  "epoch": 5000,
+  "resources": 1000.0
+}
+```
+
+### Explanation
+
+- **`mutation_config`**  
+  - Defines how different traits (memory, learning, teaching) can mutate.  
+  - Each **`MutationParams`** block has a `probability` of mutation and a `magnitude_std` controlling the size of the mutation step.
+
+- **`agent_config`**  
+  - **`base_brain_volume`**: Base brain volume for all agents.  
+  - **`mem_cost`**: How much brain volume scales with memory usage.  
+  - **`death_prob_multiplier`**: Factor determining age-based death probability.
+
+- **`meme_config`**  
+  - A list of **`MemeConfig`** entries, each describing a possible meme type (`meme_kind` can be `"Hunting"`, `"Learning"`, `"Teaching"`, `"Trick"`, or `"Useless"`).  
+  - **`probability`** indicates how likely a new meme of this type is to appear (per time step, or however your simulation uses it).  
+  - **`size`** and **`effect`** define min/max ranges for meme size or effect levels, used in random sampling.
+
+- **`group_config`**  
+  - **`max_size`** sets the limit at which a group splits.
+
+- **`epoch`**  
+  - The total number of discrete time steps (years, generations, etc.) to simulate.
+
+- **`resources`**  
+  - How many resources are available in total (for the entire simulation step), or some other global supply measure.
+
+### Usage
+
+1. **Create** a JSON file (e.g. `config.json`) with the contents shown above (adjusting values as desired).
+2. **Load** it in your Rust code using something like:
+   ```rust
+   let sim_config: SimConfig = load_config_from_json("config.json")
+       .expect("Failed to load simulation config");
+   ```
+   (assuming you’ve implemented or used a helper like `serde_json::from_reader`).
+
+3. **Run** the simulation with these parameters. You can store or retrieve multiple config files for different scenarios, easily versioning your experiments.
+
+This JSON-based approach makes it straightforward to **edit** or **share** simulation settings without recompiling the code.
+
 # Project Structure
 
 The project follows a **modular** design, separating the **simulation** logic (agents, groups, memetics) from the **model** logic (cultural processes, reproduction, population dynamics) and the **database** layer. Here’s an overview of the major files and directories:
@@ -43,6 +164,9 @@ The project follows a **modular** design, separating the **simulation** logic (a
 │   ├── db/
 │   │   ├── clickhouse_client.rs
 │   │   └── mod.rs
+│   ├── config/
+│   │   ├── config.rs
+│   │   └── file.rs
 │   ├── lib.rs
 │   └── main.rs
 └── Cargo.toml
@@ -87,6 +211,14 @@ The project follows a **modular** design, separating the **simulation** logic (a
 - **`mod.rs`**  
   A module file that re-exports items from `clickhouse_client.rs` and organizes the `db` code for simpler imports in the rest of the application.
 
+## `src/config`
+
+- **`config.rs`**
+  Contains all structs that constitute the simulation configuration.
+
+- **`file.rs`**
+  Contains helper functions that savethe simulation configuration to a JSON file and load it.
+
 ## Top-Level Files
 
 - **`src/lib.rs`**  
@@ -95,21 +227,3 @@ The project follows a **modular** design, separating the **simulation** logic (a
 - **`src/main.rs`**  
   The main **entry point** (binary) for running the simulation. It typically sets up the environment, parses command-line arguments or config, creates the initial population/groups, and coordinates the simulation loop (e.g., year-by-year updates). Also orchestrates any final data exports or logs to the DB.
 
-## Preparation
-The application requires access to a Clickhouse database to save statistics of its simulation runs. The SQL statements for the database deployment are present in the `sql/clickhouse/` project directory.
-
-## Building & Running
-
-- **Build** the project:
-  ```bash
-  cargo build --release
-  ```
-
-- **Run** the project:
-  ```bash
-  export CLICKHOUSE_URL="http://host:port/"
-  export CLICKHOUSE_USER=tribesim
-  export CLICKHOUSE_PASSWORD=YourSecurePassw0rd!
-  export CLICKHOUSE_DB=tribesim
-  ./target/release/tribesim
-  ```

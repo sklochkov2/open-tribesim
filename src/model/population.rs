@@ -40,7 +40,11 @@ pub fn grim_reaper<R: Rng + ?Sized>(group: &mut Group, rng: &mut R) -> usize {
     before_count - after_count
 }
 
-pub fn perform_migration<R: Rng + ?Sized>(groups: &mut Vec<Group>, rng: &mut R, migration_prob: f64) {
+pub fn perform_migration<R: Rng + ?Sized>(
+    groups: &mut Vec<Group>,
+    rng: &mut R,
+    migration_prob: f64,
+) {
     let n = groups.len();
 
     // If there's only one group, there's nowhere to migrate
@@ -128,4 +132,3 @@ pub fn handle_group_splitting<R: Rng + ?Sized>(groups: &mut Vec<Group>, rng: &mu
     // Replace the old list of groups
     *groups = new_groups;
 }
-

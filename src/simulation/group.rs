@@ -1,10 +1,8 @@
 use crate::simulation::agent::*;
-use rand::Rng;
 
-#[derive(Copy, Clone, Debug)]
-pub struct GroupCfg {
-    pub max_size: usize,
-}
+use crate::config::config::*;
+
+use rand::Rng;
 
 #[derive(Debug)]
 pub struct Group {
@@ -18,7 +16,12 @@ fn new_id<R: Rng + ?Sized>(rng: &mut R) -> usize {
 }
 
 impl Group {
-    pub fn new<R: Rng + ?Sized>(size: usize, member_cfg: AgentCfg, group_cfg: GroupCfg, rng: &mut R) -> Self {
+    pub fn new<R: Rng + ?Sized>(
+        size: usize,
+        member_cfg: AgentCfg,
+        group_cfg: GroupCfg,
+        rng: &mut R,
+    ) -> Self {
         //let a1 = Agent::default(&mut rng, cfg);
         let mut members: Vec<Agent> = Vec::new();
         for _ in 0..size {
@@ -31,7 +34,11 @@ impl Group {
         }
     }
 
-    pub fn splinter<R: Rng + ?Sized>(members: &Vec<Agent>, group_cfg: GroupCfg, rng: &mut R) -> Self {
+    pub fn splinter<R: Rng + ?Sized>(
+        members: &Vec<Agent>,
+        group_cfg: GroupCfg,
+        rng: &mut R,
+    ) -> Self {
         Self {
             id: new_id(rng),
             members: members.clone(),

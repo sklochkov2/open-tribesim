@@ -1,16 +1,10 @@
 use crate::simulation::agent::*;
 use crate::simulation::group::*;
 
+use crate::config::config::*;
+
 use rand::prelude::*;
 use rand::Rng;
-
-/*
-pub struct MutationCfg {
-    pub mem_mutation: MutationParams,
-    pub learning_mutation: MutationParams,
-    pub teaching_mutation: MutationParams,
-}
-*/
 
 pub fn attempt_reproduction<R: Rng + ?Sized>(
     parent_a: &mut Agent,

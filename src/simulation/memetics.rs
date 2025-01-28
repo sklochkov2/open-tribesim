@@ -1,14 +1,7 @@
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum MemeType {
-    Hunting,
-    Learning,
-    Teaching,
-    Trick,
-    Useless,
-}
+use crate::config::config::*;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Meme {
@@ -30,9 +23,7 @@ impl Meme {
     ///   sampled from a normal distribution centered at the midpoint and
     ///   clamped to [min_size, max_size].
     /// - `rng`: A mutable reference to any RNG implementing `rand::Rng`.
-    pub fn new_random<R: Rng + ?Sized>(
-        rng: &mut R,
-    ) -> Meme {
+    pub fn new_random<R: Rng + ?Sized>(rng: &mut R) -> Meme {
         // TODO: pack all arbitrary values into a configuration struct
         // 1. Pick a random MemeType
         let kind_index = rng.gen_range(0..=4);
@@ -74,14 +65,22 @@ impl Meme {
         }
     }
 
-    pub fn new_typed<R: Rng + ?Sized>(kind: MemeType, min_size: f64, max_size: f64, min_effect: f64, max_effect: f64, rng: &mut R) -> Meme {
+    pub fn new_typed<R: Rng + ?Sized>(
+        kind: MemeType,
+        min_size: f64,
+        max_size: f64,
+        min_effect: f64,
+        max_effect: f64,
+        rng: &mut R,
+    ) -> Meme {
         let mean = (min_size + max_size) / 2.0;
         let std = (max_size - min_size) / 6.0;
         let normal_dist = Normal::new(mean, std).expect("Invalid normal distribution parameters.");
         let mut size = normal_dist.sample(rng);
         let eff_mean = (min_effect + max_effect) / 2.0;
         let eff_std = (max_effect - min_effect) / 6.0;
-        let eff_dist = Normal::new(eff_mean, eff_std).expect("Invalid normal distribution parameters.");
+        let eff_dist =
+            Normal::new(eff_mean, eff_std).expect("Invalid normal distribution parameters.");
         size = size.clamp(min_size, max_size);
         Meme {
             id: new_id(rng),

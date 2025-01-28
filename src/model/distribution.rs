@@ -57,7 +57,5 @@ pub fn share_resources_across_groups(groups: &mut Vec<Group>, total_resources: f
 }
 
 pub fn clean_up_groups(groups: &mut Vec<Group>) {
-    groups.retain(|group| {
-        group.members.len() > 1
-    });
+    groups.retain(|group| group.members.len() > 1);
 }

@@ -1,14 +1,14 @@
-//mod simulation;
-use tribesim::simulation::memetics::*;
-use tribesim::simulation::agent::*;
 use tribesim::simulation::group::*;
 
-use tribesim::model::reproduction::*;
+use tribesim::model::culture::*;
 use tribesim::model::distribution::*;
 use tribesim::model::population::*;
-use tribesim::model::culture::*;
+use tribesim::model::reproduction::*;
 
 use tribesim::db::clickhouse_client::*;
+
+use tribesim::config::config::*;
+use tribesim::config::file::*;
 
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
@@ -22,27 +22,16 @@ fn generate_uuid() -> String {
     Uuid::new_v4().to_string()
 }
 
-async fn multi_group_run(clickhouse_url: &str, creds: &DBCreds) {
+async fn multi_group_run(cfg: SimConfig, clickhouse_url: &str, creds: &DBCreds) {
     let mut rng = Xoshiro256PlusPlus::from_entropy();
-    let resources: f64 = 5000.0;
-    let epoch = 1000000;
-    let group_cfg: GroupCfg = GroupCfg { max_size: 40 };
-    let mut groups: Vec<Group> = vec![Group::new(20, AgentCfg::default(), group_cfg, &mut rng), Group::new(100, AgentCfg::default(), group_cfg, &mut rng), Group::new(100, AgentCfg::default(), group_cfg, &mut rng)];
+    let resources: f64 = cfg.resources;
+    let epoch = cfg.epoch;
+    let mut groups: Vec<Group> = vec![
+        Group::new(20, cfg.agent_config, cfg.group_config, &mut rng),
+        Group::new(100, cfg.agent_config, cfg.group_config, &mut rng),
+        Group::new(100, cfg.agent_config, cfg.group_config, &mut rng),
+    ];
     let sim_uuid: String = generate_uuid();
-    let mut_cfg: MutationCfg = MutationCfg {
-        mem_mutation: MutationParams {
-            probability: 0.04,
-            magnitude_std: 0.4,
-        },
-        learning_mutation: MutationParams {
-            probability: 0.04,
-            magnitude_std: 0.4,
-        },
-        teaching_mutation: MutationParams {
-            probability: 0.04,
-            magnitude_std: 0.4,
-        },
-    };
 
     let mut global_stats_batch: Vec<GlobalStatsRow> = Vec::new();
     let mut meme_stats_batch: Vec<MemeStatsRow> = Vec::new();
@@ -50,13 +39,13 @@ async fn multi_group_run(clickhouse_url: &str, creds: &DBCreds) {
     for year in 0..epoch {
         groups.iter_mut().for_each(|group| {
             dinner_time(group);
-            inventions(group, &mut rng);
+            inventions(group, &cfg.meme_config, &mut rng);
             amnesia(group, &mut rng);
             perform_cultural_transfer(group, &mut rng, TransferMode::Teaching);
         });
 
         share_resources_across_groups(&mut groups, resources);
-        
+
         groups.iter_mut().for_each(|group| {
             useless(group, &mut rng);
             perform_cultural_transfer(group, &mut rng, TransferMode::Learning);
@@ -66,7 +55,7 @@ async fn multi_group_run(clickhouse_url: &str, creds: &DBCreds) {
         clean_up_groups(&mut groups);
 
         groups.iter_mut().for_each(|group| {
-            reproduce_group(group, &mut rng, mut_cfg);
+            reproduce_group(group, &mut rng, cfg.mutation_config);
         });
 
         handle_group_splitting(&mut groups, &mut rng);
@@ -77,14 +66,14 @@ async fn multi_group_run(clickhouse_url: &str, creds: &DBCreds) {
 
         if (year + 1) % 1000 == 0 {
             match insert_global_stats(clickhouse_url, creds, &global_stats_batch).await {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => {
                     println!("Error while inserting into Clickhouse: {:?}", e);
                 }
             }
             global_stats_batch = Vec::new();
             match insert_meme_stats(clickhouse_url, creds, &meme_stats_batch).await {
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(e) => {
                     println!("Error while inserting into Clickhouse: {:?}", e);
                 }
@@ -106,13 +95,13 @@ async fn multi_group_run(clickhouse_url: &str, creds: &DBCreds) {
         }
     }
     match insert_global_stats(clickhouse_url, creds, &global_stats_batch).await {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             println!("Error while inserting into Clickhouse: {:?}", e);
         }
     }
     match insert_meme_stats(clickhouse_url, creds, &meme_stats_batch).await {
-        Ok(_) => {},
+        Ok(_) => {}
         Err(e) => {
             println!("Error while inserting into Clickhouse: {:?}", e);
         }
@@ -120,34 +109,11 @@ async fn multi_group_run(clickhouse_url: &str, creds: &DBCreds) {
     print_group_statistics(&groups);
 }
 
-/*
-#[derive(Debug, Row, Serialize, Deserialize)]
-pub struct GlobalStatsRow {
-    pub simulation_id: String,
-    pub year: u32,
-
-    pub total_memes_known: u64,
-    pub avg_memes_known: f64,
-    pub avg_trick_efficiency: f64,
-    pub avg_brain_volume: f64,
-    pub avg_meme_size: f64,
-    // event_time has DEFAULT now(), so we omit it unless we want to supply it
-}
-
-/// Matches the simulation_yearly_meme_stats table
-#[derive(Debug, Row, Serialize, Deserialize)]
-pub struct MemeStatsRow {
-    pub simulation_id: String,
-    pub year: u32,
-    pub meme_kind: String,
-
-    pub avg_meme_efficiency: f64,
-    pub avg_meme_size: f64,
-    // event_time has DEFAULT now()
-}
-*/
-
-fn build_general_statistics(simulation_id: String, year:usize, groups: &Vec<Group>) -> GlobalStatsRow {
+fn build_general_statistics(
+    simulation_id: String,
+    year: usize,
+    groups: &Vec<Group>,
+) -> GlobalStatsRow {
     let mut total_memes_known: u64 = 0;
     let mut headcount: u64 = 0;
     let mut avg_memes_known: f64 = 0.0;
@@ -167,7 +133,15 @@ fn build_general_statistics(simulation_id: String, year:usize, groups: &Vec<Grou
         }
     }
     if headcount < 1 {
-        return GlobalStatsRow{simulation_id: simulation_id.clone(), year: year as u32, total_memes_known: 0, avg_memes_known: 0.0, avg_trick_efficiency: 0.0, avg_brain_volume: 0.0, avg_meme_size: 0.0};
+        return GlobalStatsRow {
+            simulation_id: simulation_id.clone(),
+            year: year as u32,
+            total_memes_known: 0,
+            avg_memes_known: 0.0,
+            avg_trick_efficiency: 0.0,
+            avg_brain_volume: 0.0,
+            avg_meme_size: 0.0,
+        };
     }
     avg_memes_known = (total_memes_known as f64) / (headcount as f64);
     avg_trick_efficiency /= headcount as f64;
@@ -187,8 +161,18 @@ fn build_general_statistics(simulation_id: String, year:usize, groups: &Vec<Grou
     }
 }
 
-fn build_meme_statistics(simulation_id: String, year: usize, groups: &Vec<Group>) -> Vec<MemeStatsRow> {
-    let meme_types: Vec<MemeType> = vec![MemeType::Hunting, MemeType::Learning, MemeType::Teaching, MemeType::Trick, MemeType::Useless];
+fn build_meme_statistics(
+    simulation_id: String,
+    year: usize,
+    groups: &Vec<Group>,
+) -> Vec<MemeStatsRow> {
+    let meme_types: Vec<MemeType> = vec![
+        MemeType::Hunting,
+        MemeType::Learning,
+        MemeType::Teaching,
+        MemeType::Trick,
+        MemeType::Useless,
+    ];
     let mut res: Vec<MemeStatsRow> = Vec::new();
     for meme_type in meme_types {
         let mut tot_memes: u64 = 0;
@@ -226,7 +210,11 @@ fn build_meme_statistics(simulation_id: String, year: usize, groups: &Vec<Group>
 
 fn print_group_statistics(groups: &Vec<Group>) {
     for group in groups {
-        println!("Group {} ({} members) statistics", group.id, group.members.len());
+        println!(
+            "Group {} ({} members) statistics",
+            group.id,
+            group.members.len()
+        );
         let mut total_memes_known: usize = 0;
         let mut avg_meme_size: f64 = 0.0;
         let mut avg_mc: f64 = 0.0;
@@ -261,19 +249,31 @@ fn print_group_statistics(groups: &Vec<Group>) {
     }
 }
 
-/*
-pub struct DBCreds {
-    pub user: &str,
-    pub password: &str,
-    pub database: &str,
-}
-*/
-
 #[tokio::main]
 async fn main() {
     let clickhouse_url = env::var("CLICKHOUSE_URL").expect("CLICKHOUSE_URL must be set");
     let user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
     let password = env::var("CLICKHOUSE_PASSWORD").expect("CLICKHOUSE_PASSWORD must be set");
     let database = env::var("CLICKHOUSE_DB").expect("CLICKHOUSE_DB must be set");
-    multi_group_run(clickhouse_url.as_str(), &DBCreds{user: user, password: password, database: database}).await;
+    let config_path = env::var("SIM_CONFIG").expect("SIM_CONFIG must be set");
+    let sim_cfg: SimConfig;
+    //match save_config_to_json("./cfg.json", &sim_cfg) {
+    match load_config_from_json(config_path.as_str()) {
+        Ok(c) => {
+            sim_cfg = c;
+            multi_group_run(
+                sim_cfg,
+                clickhouse_url.as_str(),
+                &DBCreds {
+                    user: user,
+                    password: password,
+                    database: database,
+                },
+            )
+            .await;
+        }
+        Err(e) => {
+            println!("Error loading config from file: {:?}", e);
+        }
+    }
 }
