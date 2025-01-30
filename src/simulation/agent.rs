@@ -1,19 +1,24 @@
 use rand::Rng;
-//use rand_distr::{Distribution, Normal};
 use std::collections::HashSet;
 
 use crate::config::config::*;
 use crate::simulation::memetics::*;
+
+#[derive(Debug, Clone, Copy)]
+pub struct Alleles {
+    pub allele1: f64,
+    pub allele2: f64,
+}
 
 #[derive(Debug, Clone)]
 pub struct Agent {
     pub id: usize,
     pub age: u8,
     pub hunger_counter: u8,
-    pub memory_capacity: f64,
-    pub learning_efficiency: f64,
+    pub mc_alleles: Alleles,
+    pub le_alleles: Alleles,
+    pub te_alleles: Alleles,
     pub tot_learning_efficiency: f64,
-    pub teaching_efficiency: f64,
     pub tot_teaching_efficiency: f64,
     pub hunting_efficiency: f64,
     pub tot_hunting_efficiency: f64,
@@ -30,16 +35,23 @@ fn new_id<R: Rng + ?Sized>(rng: &mut R) -> usize {
     rng.gen::<usize>()
 }
 
+impl Alleles {
+    /// Returns the average (phenotypic expression).
+    pub fn phenotype(&self) -> f64 {
+        0.5 * (self.allele1 + self.allele2)
+    }
+}
+
 impl Agent {
     pub fn default<R: Rng + ?Sized>(rng: &mut R, cfg: AgentCfg) -> Self {
         Self {
             id: new_id(rng),
             age: 0,
             hunger_counter: 0,
-            memory_capacity: 0.0,
-            learning_efficiency: 0.1,
+            mc_alleles: Alleles{allele1: 0.0, allele2: 0.0},
+            le_alleles: Alleles{allele1: 0.1, allele2: 0.1},
+            te_alleles: Alleles{allele1: 0.0, allele2: 0.0},
             tot_learning_efficiency: 0.1,
-            teaching_efficiency: 0.0,
             tot_teaching_efficiency: 0.0,
             hunting_efficiency: 10.0,
             tot_hunting_efficiency: 10.0,
@@ -53,18 +65,28 @@ impl Agent {
         }
     }
 
-    pub fn newborn<R: Rng + ?Sized>(rng: &mut R, mc: f64, le: f64, te: f64, cfg: AgentCfg) -> Self {
+    pub fn newborn<R: Rng + ?Sized>(
+        rng: &mut R,
+        mc_alleles: Alleles,
+        le_alleles: Alleles,
+        te_alleles: Alleles,
+        cfg: AgentCfg,
+    ) -> Self {
+        // We'll compute the phenotypes for the newly minted agent
+        let le_phenotype = le_alleles.phenotype();
+        let te_phenotype = te_alleles.phenotype();
+
         Self {
             id: new_id(rng),
             age: 0,
             hunger_counter: 0,
-            memory_capacity: mc,
-            learning_efficiency: le,
-            tot_learning_efficiency: le,
-            teaching_efficiency: te,
-            tot_teaching_efficiency: te,
-            hunting_efficiency: 10.0,
+            mc_alleles,
+            le_alleles,
+            te_alleles,
+            tot_learning_efficiency: le_phenotype,
+            tot_teaching_efficiency: te_phenotype,
             tot_hunting_efficiency: 10.0,
+            hunting_efficiency: 10.0,
             trick_efficiency: 0.0,
             useless_probability: 0.0,
             memory_used: 0.0,
@@ -76,7 +98,7 @@ impl Agent {
     }
 
     pub fn get_brain_volume(&self) -> f64 {
-        self.config.base_brain_volume + self.config.mem_cost * self.memory_capacity
+        self.config.base_brain_volume + self.config.mem_cost * self.mc_alleles.phenotype()
     }
 
     pub fn to_string(&self) -> String {
@@ -85,7 +107,7 @@ impl Agent {
             self.id,
             self.age,
             self.hunger_counter,
-            self.memory_capacity,
+            self.mc_alleles.phenotype(),
             self.tot_learning_efficiency,
             self.tot_teaching_efficiency,
             self.tot_hunting_efficiency,
@@ -97,7 +119,7 @@ impl Agent {
     }
 
     pub fn try_learning(&mut self, m: Meme) -> bool {
-        if self.memory_capacity - self.memory_used < m.size {
+        if self.mc_alleles.phenotype() - self.memory_used < m.size {
             return false;
         }
         self.memory_used += m.size;

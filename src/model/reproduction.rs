@@ -12,85 +12,110 @@ pub fn attempt_reproduction<R: Rng + ?Sized>(
     mut_cfg: MutationCfg,
     rng: &mut R,
 ) -> Option<Agent> {
+    // Step 1: Child inherits one allele from each parent for each trait.
+    // memory_capacity:
+    let child_mc_allele_from_a = if rng.gen_bool(0.5) {
+        parent_a.mc_alleles.allele1
+    } else {
+        parent_a.mc_alleles.allele2
+    };
+    let child_mc_allele_from_b = if rng.gen_bool(0.5) {
+        parent_b.mc_alleles.allele1
+    } else {
+        parent_b.mc_alleles.allele2
+    };
+
+    // learning_efficiency:
+    let child_le_allele_from_a = if rng.gen_bool(0.5) {
+        parent_a.le_alleles.allele1
+    } else {
+        parent_a.le_alleles.allele2
+    };
+    let child_le_allele_from_b = if rng.gen_bool(0.5) {
+        parent_b.le_alleles.allele1
+    } else {
+        parent_b.le_alleles.allele2
+    };
+
+    // teaching_efficiency:
+    let child_te_allele_from_a = if rng.gen_bool(0.5) {
+        parent_a.te_alleles.allele1
+    } else {
+        parent_a.te_alleles.allele2
+    };
+    let child_te_allele_from_b = if rng.gen_bool(0.5) {
+        parent_b.te_alleles.allele1
+    } else {
+        parent_b.te_alleles.allele2
+    };
+
+    // Step 2: Apply mutation *individually* to each allele
+    //   We'll do it using your existing mutation approach, e.g.:
     let mc_mutation = mut_cfg.mem_mutation;
     let le_mutation = mut_cfg.learning_mutation;
     let te_mutation = mut_cfg.teaching_mutation;
-    // 1. Inherit memory_capacity, learning_efficiency, teaching_efficiency from parents
-    let child_mc = if rng.gen_bool(0.5) {
-        parent_a.memory_capacity
-    } else {
-        parent_b.memory_capacity
-    };
 
-    let child_le = if rng.gen_bool(0.5) {
-        parent_a.learning_efficiency
-    } else {
-        parent_b.learning_efficiency
+    let mut child_mc_alleles = Alleles {
+        allele1: mc_mutation.mutate_value(child_mc_allele_from_a, rng),
+        allele2: mc_mutation.mutate_value(child_mc_allele_from_b, rng),
     };
-
-    let child_te = if rng.gen_bool(0.5) {
-        parent_a.teaching_efficiency
-    } else {
-        parent_b.teaching_efficiency
-    };
-
-    // 2. Apply mutations & clamp within valid ranges
-    let mut mc_mutated = mc_mutation.mutate_value(child_mc, rng);
-    if mc_mutated < 0.0 {
-        mc_mutated = 0.0;
+    // clamp to >= 0
+    if child_mc_alleles.allele1 < 0.0 {
+        child_mc_alleles.allele1 = 0.0;
+    }
+    if child_mc_alleles.allele2 < 0.0 {
+        child_mc_alleles.allele2 = 0.0;
     }
 
-    let mut le_mutated = le_mutation.mutate_value(child_le, rng);
-    if le_mutated < 0.0 {
-        le_mutated = 0.0;
-    } else if le_mutated > 1.0 {
-        le_mutated = 1.0;
+    let mut child_le_alleles = Alleles {
+        allele1: le_mutation.mutate_value(child_le_allele_from_a, rng),
+        allele2: le_mutation.mutate_value(child_le_allele_from_b, rng),
+    };
+    // clamp within [0.0, 1.0]
+    for val in &mut [ &mut child_le_alleles.allele1, &mut child_le_alleles.allele2 ] {
+        if **val < 0.0 { **val = 0.0; }
+        if **val > 1.0 { **val = 1.0; }
     }
 
-    let mut te_mutated = te_mutation.mutate_value(child_te, rng);
-    if te_mutated < 0.0 {
-        te_mutated = 0.0;
-    } else if te_mutated > 1.0 {
-        te_mutated = 1.0;
+    let mut child_te_alleles = Alleles {
+        allele1: te_mutation.mutate_value(child_te_allele_from_a, rng),
+        allele2: te_mutation.mutate_value(child_te_allele_from_b, rng),
+    };
+    // clamp within [0.0, 1.0]
+    for val in &mut [ &mut child_te_alleles.allele1, &mut child_te_alleles.allele2 ] {
+        if **val < 0.0 { **val = 0.0; }
+        if **val > 1.0 { **val = 1.0; }
     }
 
-    // pub fn newborn(rng: &mut StdRng, mc: f64, le: f64, te: f64, cfg: AgentCfg) -> Self
-    // 3. Create a "potential child" to compute its brain_volume
-    // The config is the same for everyone at this stage; if it changes, additional logic is
-    // required
+    // Step 3: Build a "potential child" to compute brain volume
     let potential_child = Agent::newborn(
         rng,
-        mc_mutated,
-        le_mutated,
-        te_mutated,
+        child_mc_alleles,
+        child_le_alleles,
+        child_te_alleles,
         parent_a.config.clone(),
     );
 
-    // 4. Compute the child's brain volume -> cost each parent must pay
-    // According to the step: "both parents need to spend 2 * child's brain volume"
+    // Step 4: Reproduction cost = 2 * child's brain volume
     let child_brain_volume = potential_child.get_brain_volume();
     let child_cost = 2.0 * child_brain_volume;
-    let mut resource_pool = parent_a.resources + parent_b.resources;
 
-    // 5. Check if each parent has enough resources
+    // Check resources from both parents
+    let mut resource_pool = parent_a.resources + parent_b.resources;
     if resource_pool < child_cost {
-        // Not enough resources -> fail
-        return None;
+        return None; // not enough
     }
 
-    // 6. Deduct cost
+    // Deduct cost, leftover is resource_pool
     resource_pool -= child_cost;
 
-    // 7. Distribute leftover resources: child gets 40%, parents split 60%
-    // 40% -> child's resource
+    // 40% -> child, 60% -> equally for parents
     let child_share = 0.40 * resource_pool;
-    // 60% -> equally split between the two parents
     let parent_share_each = 0.30 * resource_pool;
 
     parent_a.resources = parent_share_each;
     parent_b.resources = parent_share_each;
 
-    // 8. Build the final child struct with the assigned resources
     let mut child = potential_child;
     child.resources = child_share;
 

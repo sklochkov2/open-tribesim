@@ -225,7 +225,7 @@ fn print_group_statistics(groups: &Vec<Group>) {
         let mut avg_useless: f64 = 0.0;
         for member in &group.members {
             total_memes_known += member.memes.len();
-            avg_mc += member.memory_capacity;
+            avg_mc += member.mc_alleles.phenotype();
             avg_hunting += member.tot_hunting_efficiency;
             avg_learning += member.tot_learning_efficiency;
             avg_teaching += member.tot_teaching_efficiency;
