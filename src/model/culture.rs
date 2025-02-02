@@ -36,6 +36,7 @@ pub fn inventions<R: Rng + ?Sized>(group: &mut Group, meme_cfg: &Vec<MemeConfig>
                     config.size.max,
                     config.effect.min,
                     config.effect.max,
+                    config.size_effect_corr,
                     rng,
                 );
                 agent.try_learning(meme);

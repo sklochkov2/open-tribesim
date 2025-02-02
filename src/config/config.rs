@@ -48,6 +48,7 @@ pub struct MemeConfig {
     pub probability: f64,
     pub size: Range,
     pub effect: Range,
+    pub size_effect_corr: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
