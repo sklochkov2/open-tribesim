@@ -6,6 +6,7 @@ use tribesim::model::population::*;
 use tribesim::model::reproduction::*;
 
 use tribesim::db::clickhouse_client::*;
+use tribesim::db::mysql_client::*;
 
 use tribesim::config::config::*;
 use tribesim::config::file::*;
@@ -13,6 +14,7 @@ use tribesim::config::file::*;
 use rand_xoshiro::rand_core::SeedableRng;
 use rand_xoshiro::Xoshiro256PlusPlus;
 
+use mysql_async::Pool;
 use std::env;
 use tokio;
 use uuid::Uuid;
@@ -22,16 +24,30 @@ fn generate_uuid() -> String {
     Uuid::new_v4().to_string()
 }
 
-async fn multi_group_run(cfg: SimConfig, clickhouse_url: &str, creds: &DBCreds) {
+async fn multi_group_run(cfg: SimConfig, clickhouse_url: &str, mysql_pool: &Pool, creds: &DBCreds) {
     let mut rng = Xoshiro256PlusPlus::from_entropy();
     let resources: f64 = cfg.resources;
     let epoch = cfg.epoch;
+
+    let init_members: usize = (cfg.resources as usize) / 17 / 3;
     let mut groups: Vec<Group> = vec![
-        Group::new(20, cfg.agent_config, cfg.group_config, &mut rng),
-        Group::new(100, cfg.agent_config, cfg.group_config, &mut rng),
-        Group::new(100, cfg.agent_config, cfg.group_config, &mut rng),
+        Group::new(init_members, cfg.agent_config, cfg.group_config, &mut rng),
+        Group::new(init_members, cfg.agent_config, cfg.group_config, &mut rng),
+        Group::new(init_members, cfg.agent_config, cfg.group_config, &mut rng),
     ];
     let sim_uuid: String = generate_uuid();
+
+    match store_simulation_config(mysql_pool, sim_uuid.as_str(), &cfg).await {
+        Ok(_) => {
+            println!("Successfully stored configuration for run {}", sim_uuid);
+        }
+        Err(e) => {
+            println!(
+                "Failed to store configuration for run {} in mysql: {}",
+                sim_uuid, e
+            );
+        }
+    }
 
     let mut global_stats_batch: Vec<GlobalStatsRow> = Vec::new();
     let mut meme_stats_batch: Vec<MemeStatsRow> = Vec::new();
@@ -255,8 +271,11 @@ async fn main() {
     let user = env::var("CLICKHOUSE_USER").expect("CLICKHOUSE_USER must be set");
     let password = env::var("CLICKHOUSE_PASSWORD").expect("CLICKHOUSE_PASSWORD must be set");
     let database = env::var("CLICKHOUSE_DB").expect("CLICKHOUSE_DB must be set");
+    let mysql_url = env::var("MYSQL_URL").expect("MYSQL_URL must be set");
     let config_path = env::var("SIM_CONFIG").expect("SIM_CONFIG must be set");
     let sim_cfg: SimConfig;
+    let pool = mysql_async::Pool::new(mysql_url.as_str());
+
     //match save_config_to_json("./cfg.json", &sim_cfg) {
     match load_config_from_json(config_path.as_str()) {
         Ok(c) => {
@@ -264,6 +283,7 @@ async fn main() {
             multi_group_run(
                 sim_cfg,
                 clickhouse_url.as_str(),
+                &pool,
                 &DBCreds {
                     user: user,
                     password: password,

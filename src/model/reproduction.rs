@@ -72,9 +72,13 @@ pub fn attempt_reproduction<R: Rng + ?Sized>(
         allele2: le_mutation.mutate_value(child_le_allele_from_b, rng),
     };
     // clamp within [0.0, 1.0]
-    for val in &mut [ &mut child_le_alleles.allele1, &mut child_le_alleles.allele2 ] {
-        if **val < 0.0 { **val = 0.0; }
-        if **val > 1.0 { **val = 1.0; }
+    for val in &mut [&mut child_le_alleles.allele1, &mut child_le_alleles.allele2] {
+        if **val < 0.0 {
+            **val = 0.0;
+        }
+        if **val > 1.0 {
+            **val = 1.0;
+        }
     }
 
     let mut child_te_alleles = Alleles {
@@ -82,9 +86,13 @@ pub fn attempt_reproduction<R: Rng + ?Sized>(
         allele2: te_mutation.mutate_value(child_te_allele_from_b, rng),
     };
     // clamp within [0.0, 1.0]
-    for val in &mut [ &mut child_te_alleles.allele1, &mut child_te_alleles.allele2 ] {
-        if **val < 0.0 { **val = 0.0; }
-        if **val > 1.0 { **val = 1.0; }
+    for val in &mut [&mut child_te_alleles.allele1, &mut child_te_alleles.allele2] {
+        if **val < 0.0 {
+            **val = 0.0;
+        }
+        if **val > 1.0 {
+            **val = 1.0;
+        }
     }
 
     // Step 3: Build a "potential child" to compute brain volume

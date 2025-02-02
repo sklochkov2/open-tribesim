@@ -1,0 +1,12 @@
+CREATE TABLE simulation_runs (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  
+  run_uuid VARCHAR(36) NOT NULL,
+  
+  config JSON NOT NULL,
+  
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX (run_uuid)
+);
+

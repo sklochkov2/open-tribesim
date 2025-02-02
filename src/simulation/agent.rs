@@ -48,9 +48,18 @@ impl Agent {
             id: new_id(rng),
             age: 0,
             hunger_counter: 0,
-            mc_alleles: Alleles{allele1: 0.0, allele2: 0.0},
-            le_alleles: Alleles{allele1: 0.1, allele2: 0.1},
-            te_alleles: Alleles{allele1: 0.0, allele2: 0.0},
+            mc_alleles: Alleles {
+                allele1: 0.0,
+                allele2: 0.0,
+            },
+            le_alleles: Alleles {
+                allele1: 0.1,
+                allele2: 0.1,
+            },
+            te_alleles: Alleles {
+                allele1: 0.0,
+                allele2: 0.0,
+            },
             tot_learning_efficiency: 0.1,
             tot_teaching_efficiency: 0.0,
             hunting_efficiency: 10.0,

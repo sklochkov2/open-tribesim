@@ -10,6 +10,7 @@ pub use model::reproduction::*;
 
 pub mod db;
 pub use db::clickhouse_client::*;
+pub use db::mysql_client::*;
 
 pub mod config;
 pub use config::config::*;
