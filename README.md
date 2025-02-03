@@ -42,7 +42,9 @@ The application requires access to a Clickhouse database to save statistics of i
   export CLICKHOUSE_PASSWORD=YourSecurePassw0rd!
   export CLICKHOUSE_DB=tribesim
   export SIM_CONFIG=examples/cfg.json
-  ./target/release/tribesim
+  export MYSQL_URL="mysql://user:MySecurePassw0rd@localhost:3306/tribesim"
+  ./target/release/tribesim                 # Launch the simulation in one-shot mode.
+  ./target/release/tribesim --launch-server # Launch web server providing Tribesim REST API.
   ```
 
 # JSON Configuration Format
@@ -149,27 +151,41 @@ The project follows a **modular** design, separating the **simulation** logic (a
 
 ```
 .
-├── src/
-│   ├── simulation/
-│   │   ├── agent.rs
-│   │   ├── group.rs
-│   │   ├── memetics.rs
-│   │   └── mod.rs
-│   ├── model/
-│   │   ├── culture.rs
-│   │   ├── distribution.rs
-│   │   ├── population.rs
-│   │   ├── reproduction.rs
-│   │   └── mod.rs
-│   ├── db/
-│   │   ├── clickhouse_client.rs
-│   │   └── mod.rs
-│   ├── config/
-│   │   ├── config.rs
-│   │   └── file.rs
-│   ├── lib.rs
-│   └── main.rs
-└── Cargo.toml
+├── Cargo.toml
+├── src
+│   ├── api
+│   │   ├── api_server.rs
+│   │   ├── model.rs
+│   │   └── mod.rs
+│   ├── cli
+│   │   ├── args.rs
+│   │   └── mod.rs
+│   ├── config
+│   │   ├── config.rs
+│   │   ├── file.rs
+│   │   └── mod.rs
+│   ├── db
+│   │   ├── clickhouse_client.rs
+│   │   ├── mod.rs
+│   │   └── mysql_client.rs
+│   ├── lib.rs
+│   ├── main.rs
+│   ├── model
+│   │   ├── culture.rs
+│   │   ├── distribution.rs
+│   │   ├── mod.rs
+│   │   ├── population.rs
+│   │   └── reproduction.rs
+│   ├── runtime
+│   │   ├── mod.rs
+│   │   ├── run_sim.rs
+│   │   └── statistics.rs
+│   ├── simulation
+│   │   ├── agent.rs
+│   │   ├── group.rs
+│   │   ├── memetics.rs
+│   │   └── mod.rs
+│   └── utils.rs
 ```
 
 ## `src/simulation/`
@@ -208,6 +224,9 @@ The project follows a **modular** design, separating the **simulation** logic (a
 - **`clickhouse_client.rs`**  
   Contains all ClickHouse-related I/O: establishing a connection client, constructing insertion logic (batched or otherwise), and possibly schema definitions or data struct mappings for writing simulation stats to the database.
 
+- **`mysql_client.rs`**
+  Contains all MySQL-related I/O and all logic required to save simulation metadata.
+
 - **`mod.rs`**  
   A module file that re-exports items from `clickhouse_client.rs` and organizes the `db` code for simpler imports in the rest of the application.
 
@@ -219,6 +238,28 @@ The project follows a **modular** design, separating the **simulation** logic (a
 - **`file.rs`**
   Contains helper functions that savethe simulation configuration to a JSON file and load it.
 
+## `src/cli`
+
+- **`args.rs`**
+  Contains the Args struct which encapsulates all the command line arguments.
+
+## `src/runtime`
+
+- **`run_sim.rs`**
+  Contains the simulation loop which executes all changes on the simulated groups for all the simulated "years".
+
+- **`statistics.rs`**
+  Contains the functions used for simulation instrumentation; they aggregate the data for subsequent insertion into Clickhouse.
+
+## `src/api`
+
+- **`api_server.rs`**
+  Contains implementation of the tribesim REST API.
+
+- **`model.rs`**
+  Contains all the data structures sent or received by the REST API.
+
+
 ## Top-Level Files
 
 - **`src/lib.rs`**  
@@ -226,4 +267,7 @@ The project follows a **modular** design, separating the **simulation** logic (a
 
 - **`src/main.rs`**  
   The main **entry point** (binary) for running the simulation. It typically sets up the environment, parses command-line arguments or config, creates the initial population/groups, and coordinates the simulation loop (e.g., year-by-year updates). Also orchestrates any final data exports or logs to the DB.
+
+- **`src/utils.rs`**
+  Used to store generic helper functions. At the moment, it contains only the `generate_uuid()` function.
 
